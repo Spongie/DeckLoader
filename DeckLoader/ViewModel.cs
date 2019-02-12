@@ -10,12 +10,8 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using System.Threading.Tasks;
 using DeckLoader.Models;
 using DeckLoader.Models.TableTop;
-using Imgur.API.Authentication.Impl;
-using Imgur.API.Endpoints.Impl;
-using Imgur.API.Models;
 using Newtonsoft.Json;
 
 namespace DeckLoader
@@ -37,10 +33,7 @@ namespace DeckLoader
             CurrentCombinedProgress = 0;
             CardCount = 100;
 
-            SelectedFile = @"C:\Users\Entercyber\Documents\Storm.txt";
-            SelectedImagePath = @"C:\Users\Entercyber\Documents\Storm.txt";
-            OutputFolder = @"D:\Deck";
-            deckName = "test";
+            OutputFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "My Games", "Tabletop Simulator", "Saves", "Saved Objects");
 
             if (!Directory.Exists("Cards"))
             {
@@ -268,22 +261,15 @@ namespace DeckLoader
                     }
                 }
 
-                ImageCodecInfo jpgEncoder = GetEncoder(ImageFormat.Jpeg);
-                System.Drawing.Imaging.Encoder myEncoder = Encoder.Quality;
-                var myEncoderParameters = new EncoderParameters(1);
-
-                var myEncoderParameter = new EncoderParameter(myEncoder, 90L);
-                myEncoderParameters.Param[0] = myEncoderParameter;
-
-                bitmap.Save(outputFolder + "\\" + DeckName + "_Part_" + (i + 1).ToString() + ".jpg", jpgEncoder, myEncoderParameters);
+                bitmap.Save(outputFolder + "\\" + DeckName + "_Part_" + (i + 1).ToString() + ".png");
                 baseId += 100;
             }
 
             Log += "Uploading image 1/2..." + Environment.NewLine;
-            UploadAndSetImageLink(outputFolder + "\\" + DeckName + "_Part_1.jpg", deck, 1);
+            UploadAndSetImageLink(outputFolder + "\\" + DeckName + "_Part_1.png", deck, 1);
 
             Log += "Uploading image 2/2..." + Environment.NewLine;
-            UploadAndSetImageLink(outputFolder + "\\" + DeckName + "_Part_2.jpg", deck, 2);
+            UploadAndSetImageLink(outputFolder + "\\" + DeckName + "_Part_2.png", deck, 2);
 
             Log += "Saving deck to output..." + Environment.NewLine;
             File.WriteAllText(outputFolder + "\\" + DeckName + ".json", JsonConvert.SerializeObject(tableTopObject, Formatting.Indented, new TableTopCustomDeckJson()));
@@ -331,17 +317,20 @@ namespace DeckLoader
         
         private void UploadAndSetImageLink(string imagePath, TableTopDeck deck, int index)
         {
-            var client = new ImgurClient("b99e60a50806ebe", "e5483212a3c81bae011d6e11deb62fdcf4d2d092");
-            var endpoint = new ImageEndpoint(client);
-            IImage image;
-            using (var fs = new FileStream(imagePath, FileMode.Open))
+            using (var httpClient = new HttpClient())
             {
-                image = endpoint.UploadImageStreamAsync(fs).Result;
+                var form = new MultipartFormDataContent();
 
-                deck.CustomDeck.TableTopDeckInfos.Add(index, new TableTopDeckImageInfo
-                {
-                    FaceURL = image.Link
-                });
+                var bytes = File.ReadAllBytes(imagePath);
+                var imageForm = new ByteArrayContent(bytes, 0, bytes.Count());
+                imageForm.Headers.ContentType = new MediaTypeHeaderValue("image/jpg");
+
+                form.Add(imageForm, "image", "nameholder.png");
+
+                HttpResponseMessage response = httpClient.PostAsync("https://api.put.re/upload", form).Result;
+
+                response.EnsureSuccessStatusCode();
+                string imageLink = JsonConvert.DeserializeObject<UploadResponse>(response.Content.ReadAsStringAsync().Result).Data.Link;
 
                 foreach (var containedObject in deck.ContainedObjects)
                 {
@@ -349,10 +338,11 @@ namespace DeckLoader
 
                     if (key == index)
                     {
-                        containedObject.CustomDeck.TableTopDeckInfos[key].FaceURL = image.Link;
+                        containedObject.CustomDeck.TableTopDeckInfos[key].FaceURL = imageLink;
                     }
                 }
             }
+                
         }
 
         private void FirePropertChanged([CallerMemberName]string property = "")
