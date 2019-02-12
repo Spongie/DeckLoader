@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using Newtonsoft.Json;
 
 namespace DeckLoader.Models
 {
@@ -48,5 +49,7 @@ namespace DeckLoader.Models
         public bool Full_art { get; set; }
         public bool Story_spotlight { get; set; }
         public RelatedUris Related_uris { get; set; }
+        [JsonProperty("card_faces")]
+        public List<CardFace> CardFaces { get; set; }
     }
 }

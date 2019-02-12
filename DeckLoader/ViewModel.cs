@@ -37,6 +37,11 @@ namespace DeckLoader
             CurrentCombinedProgress = 0;
             CardCount = 100;
 
+            SelectedFile = @"C:\Users\Entercyber\Documents\Storm.txt";
+            SelectedImagePath = @"C:\Users\Entercyber\Documents\Storm.txt";
+            OutputFolder = @"D:\Deck";
+            deckName = "test";
+
             if (!Directory.Exists("Cards"))
             {
                 Directory.CreateDirectory("Cards");
@@ -154,52 +159,59 @@ namespace DeckLoader
             List<Card> cards = JsonConvert.DeserializeObject<List<Card>>(File.ReadAllText(apiFileName));
 
             Log += "Downloading images..." + Environment.NewLine;
-            Parallel.ForEach(lines, new ParallelOptions { MaxDegreeOfParallelism = 1 }, (line) =>
-            {
+            foreach (var line in lines)
+            { 
                 int count = int.Parse(line.Split(' ').First());
                 string cardName = line.Substring(line.IndexOf(' ') + 1).Trim().Replace("/", " // ");
 
-                var imageLink = cards.Where(card => card.Name == cardName
-                && !card.Promo
-                && card.Nonfoil
-                && card.Image_uris != null
-                && !string.IsNullOrEmpty(card.Image_uris.Large))
-                .Last()
-                .Image_uris.Large;
+                var imageLinks = GetCardImages(cardName, cards).ToArray();
 
-                using (var client = new WebClient())
+                for (int imageIndex = 0; imageIndex < imageLinks.Length; imageIndex++)
                 {
-                    var file = "Cards\\" + cardName.Replace(" ", string.Empty).Replace("'", string.Empty).Replace("//", "_").Replace(",", string.Empty) + ".jpg";
+                    var imageLink = imageLinks[imageIndex];
 
-                    if (!File.Exists(file))
+                    using (var client = new WebClient())
                     {
-                        client.DownloadFile(imageLink, file);
-                    }
-                    saveFileInfo.Add(file, cardName);
+                        var file = "Cards\\" + cardName.Replace(" ", string.Empty).Replace("'", string.Empty).Replace("//", "_").Replace(",", string.Empty) + (imageIndex > 0 ? "_Back" : "") + ".jpg";
 
-                    for (int i = 1; i < count; i++)
-                    {
-                        string copyFileName = "Cards\\" + cardName.Replace(" ", string.Empty).Replace("'", string.Empty).Replace("//", "_").Replace(",", string.Empty) + i.ToString() + ".jpg";
-
-                        if (!File.Exists(copyFileName))
+                        if (!File.Exists(file))
                         {
-                            File.Copy(file, copyFileName);
+                            client.DownloadFile(imageLink, file);
                         }
-                        saveFileInfo.Add(copyFileName, cardName);
+
+                        if (saveFileInfo.Values.Any(v => v == cardName))
+                        {
+                            saveFileInfo.Add(file, cardName + "_Back");
+                        }
+                        else
+                        {
+                            saveFileInfo.Add(file, cardName);
+                        }
+
+                        for (int i = 1; i < count; i++)
+                        {
+                            string copyFileName = "Cards\\" + cardName.Replace(" ", string.Empty).Replace("'", string.Empty).Replace("//", "_").Replace(",", string.Empty) + i.ToString() + ".jpg";
+
+                            if (!File.Exists(copyFileName))
+                            {
+                                File.Copy(file, copyFileName);
+                            }
+                            saveFileInfo.Add(copyFileName, cardName);
+                        }
                     }
                 }
 
                 Interlocked.Increment(ref currentDownloadProgress);
                 FirePropertChanged(nameof(CurrentDownloadProgress));
-            });
+            }
 
             var tableTopObject = new TableTopObject();
             var deck = tableTopObject.ObjectStates.First();
-            
 
             const int cardWidth = 409;
             const int cardHeight = 585;
             int fileIndex = 0;
+            var keys = saveFileInfo.Keys.ToArray();
             var files = Directory.GetFiles("Cards");
             int baseId = 100;
 
@@ -213,14 +225,19 @@ namespace DeckLoader
                 {
                     for (int y = 0; y < 7; y++)
                     {
-                        if (fileIndex >= files.Length)
+                        if (fileIndex >= keys.Length)
                         {
                             break;
                         }
 
                         for (int x = 0; x < 10; x++)
                         {
-                            string file = files[fileIndex];
+                            if (fileIndex >= keys.Length)
+                            {
+                                break;
+                            }
+
+                            string file = keys[fileIndex];
                             using (var image = Image.FromFile(file))
                             {
                                 graphics.DrawImage(image, x * cardWidth, y * cardHeight, cardWidth, cardHeight);
@@ -252,10 +269,10 @@ namespace DeckLoader
                 }
 
                 ImageCodecInfo jpgEncoder = GetEncoder(ImageFormat.Jpeg);
-                System.Drawing.Imaging.Encoder myEncoder = System.Drawing.Imaging.Encoder.Quality;
-                EncoderParameters myEncoderParameters = new EncoderParameters(1);
+                System.Drawing.Imaging.Encoder myEncoder = Encoder.Quality;
+                var myEncoderParameters = new EncoderParameters(1);
 
-                EncoderParameter myEncoderParameter = new EncoderParameter(myEncoder, 90L);
+                var myEncoderParameter = new EncoderParameter(myEncoder, 90L);
                 myEncoderParameters.Param[0] = myEncoderParameter;
 
                 bitmap.Save(outputFolder + "\\" + DeckName + "_Part_" + (i + 1).ToString() + ".jpg", jpgEncoder, myEncoderParameters);
@@ -270,9 +287,33 @@ namespace DeckLoader
 
             Log += "Saving deck to output..." + Environment.NewLine;
             File.WriteAllText(outputFolder + "\\" + DeckName + ".json", JsonConvert.SerializeObject(tableTopObject, Formatting.Indented, new TableTopCustomDeckJson()));
-            File.Copy(SelectedImagePath, outputFolder + "\\" + DeckName + new FileInfo(SelectedImagePath).Extension);
+            File.Copy(SelectedImagePath, outputFolder + "\\" + DeckName + new FileInfo(SelectedImagePath).Extension); 
 
             Log += "Done!";
+        }
+
+        private IEnumerable<string> GetCardImages(string cardName, List<Card> cards)
+        {
+            var foundCard = cards.Where(card =>
+                card.Name == cardName
+                && !card.Promo
+                && card.Nonfoil
+                && card.Image_uris != null
+                && !string.IsNullOrEmpty(card.Image_uris.Png))
+                .LastOrDefault();
+
+            if (foundCard == null)
+            {
+                foundCard = cards.Where(card =>
+                    card.Name.StartsWith(cardName)
+                    && !card.Promo
+                    && card.Nonfoil)
+                    .LastOrDefault();
+
+                return foundCard.CardFaces.Select(face => face.Image_uris.Png);
+            }
+
+            return new[] { foundCard.Image_uris.Png };
         }
 
         private ImageCodecInfo GetEncoder(ImageFormat format)

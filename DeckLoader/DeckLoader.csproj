@@ -64,6 +64,7 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="Models\Card.cs" />
+    <Compile Include="Models\CardFace.cs" />
     <Compile Include="Models\ImageUris.cs" />
     <Compile Include="Models\Legalities.cs" />
     <Compile Include="Models\RelatedUris.cs" />
