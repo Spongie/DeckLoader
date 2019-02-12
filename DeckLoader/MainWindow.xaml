@@ -1,0 +1,62 @@
+﻿<Window x:Class="DeckLoader.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:DeckLoader"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="450" Width="800">
+    <StackPanel>
+        <Grid Margin="5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="20*"/>
+                <ColumnDefinition Width="80*"/>
+            </Grid.ColumnDefinitions>
+            <Label Content="DeckName:"/>
+            <TextBox Text="{Binding DeckName}" Grid.Column="1"/>
+        </Grid>
+        <Grid Margin="5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="20*"/>
+                <ColumnDefinition Width="80*"/>
+            </Grid.ColumnDefinitions>
+            <Button Content="Select deck image" Click="SelectImageClick" MinWidth="130"/>
+            <Label Content="{Binding SelectedImagePath}" Grid.Column="1"/>
+        </Grid>
+        <Grid Margin="5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="20*"/>
+                <ColumnDefinition Width="80*"/>
+            </Grid.ColumnDefinitions>
+            <Button Content="Select input" Click="Button_Click" MinWidth="130"/>
+            <Label Content="{Binding SelectedFile}" Grid.Column="1"/>
+        </Grid>
+        <Grid Margin="5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="20*"/>
+                <ColumnDefinition Width="80*"/>
+            </Grid.ColumnDefinitions>
+            <Button Content="Select output folder" MinWidth="130" Click="SelectOutputClick"/>
+            <Label Content="{Binding OutputFolder}" Grid.Column="1"/>
+        </Grid>
+        <Grid Margin="5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="20*"/>
+                <ColumnDefinition Width="80*"/>
+            </Grid.ColumnDefinitions>
+            <Label Content="Download Progress:" MinWidth="130"/>
+            <ProgressBar Value="{Binding CurrentDownloadProgress}" Minimum="0" Maximum="{Binding CardCount}" Grid.Column="1"/>
+        </Grid>
+        <Grid Margin="5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="20*"/>
+                <ColumnDefinition Width="80*"/>
+            </Grid.ColumnDefinitions>
+            <Label Content="Combining Progress:" MinWidth="130"/>
+            <ProgressBar Value="{Binding CurrentCombinedProgress}" Minimum="0" Maximum="{Binding CardCount}" Grid.Column="1"/>
+        </Grid>
+        <Button Content="Start" Click="Button_Click_2"/>
+        <Label Content="Log:"/>
+        <Label Content="{Binding Log}"/>
+    </StackPanel>
+</Window>
