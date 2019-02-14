@@ -25,6 +25,12 @@ namespace DeckLoader
         private int cardCount;
         private int currentDownloadProgress;
         private Thread workerThread;
+        private string currentCard;
+        private string deckName;
+        private string selectedImagePath;
+        private int currentCombinedProgress;
+        private bool canStartJob;
+        private string log;
         const string apiFileName = "scryfall-default-cards.json";
 
         public ViewModel()
@@ -32,6 +38,7 @@ namespace DeckLoader
             CurrentDownloadProgress = 0;
             CurrentCombinedProgress = 0;
             CardCount = 100;
+            canStartJob = true;
 
             OutputFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "My Games", "Tabletop Simulator", "Saves", "Saved Objects");
 
@@ -40,8 +47,6 @@ namespace DeckLoader
                 Directory.CreateDirectory("Cards");
             }
         }
-
-        private string deckName;
 
         public string DeckName
         {
@@ -53,8 +58,6 @@ namespace DeckLoader
             }
         }
 
-        private string log;
-
         public string Log
         {
             get { return log; }
@@ -64,7 +67,6 @@ namespace DeckLoader
                 FirePropertChanged();
             }
         }
-
 
         public string OutputFolder
         {
@@ -76,8 +78,6 @@ namespace DeckLoader
             }
         }
 
-        private string selectedImagePath;
-
         public string SelectedImagePath
         {
             get { return selectedImagePath; }
@@ -87,7 +87,6 @@ namespace DeckLoader
                 FirePropertChanged();
             }
         }
-
 
         public string SelectedFile
         {
@@ -109,8 +108,6 @@ namespace DeckLoader
             }
         }
 
-        private int currentCombinedProgress;
-
         public int CurrentCombinedProgress
         {
             get { return currentCombinedProgress; }
@@ -121,6 +118,15 @@ namespace DeckLoader
             }
         }
 
+        public bool CarStartJob
+        {
+            get { return canStartJob; }
+            set
+            {
+                canStartJob = value;
+                FirePropertChanged();
+            }
+        }
 
         public int CardCount
         {
@@ -142,18 +148,46 @@ namespace DeckLoader
 
         public void DownloadImages()
         {
-            Log = "Loading API file..." + Environment.NewLine;
+            try
+            {
+                CarStartJob = false;
+                Log = "Loading API file..." + Environment.NewLine;
 
-            var lines = File.ReadAllLines(selectedFile);
-            CardCount = lines.Length;
-            var httpClient = new HttpClient();
-            var saveFileInfo = new Dictionary<string, string>();
+                var lines = File.ReadAllLines(selectedFile);
+                CardCount = lines.Length;
+                var httpClient = new HttpClient();
+                var saveFileInfo = new Dictionary<string, string>();
 
-            List<Card> cards = JsonConvert.DeserializeObject<List<Card>>(File.ReadAllText(apiFileName));
+                List<Card> cards = JsonConvert.DeserializeObject<List<Card>>(File.ReadAllText(apiFileName));
 
+                DownloadCardImages(lines, saveFileInfo, cards);
+
+                var tableTopObject = new TableTopObject();
+                var deck = tableTopObject.ObjectStates.First();
+
+                CombineImages(saveFileInfo, deck);
+                UploadImages(tableTopObject, deck);
+
+                Log += "Done!";
+            }
+            catch (Exception e)
+            {
+                System.Windows.Forms.MessageBox.Show("Error on Card: " + currentCard + Environment.NewLine + e.Message + Environment.NewLine + e.StackTrace);
+                Log += "Interruppted because of error...";
+            }
+            finally
+            {
+                CarStartJob = true;
+            }
+        }
+
+        private void DownloadCardImages(string[] lines, Dictionary<string, string> saveFileInfo, List<Card> cards)
+        {
             Log += "Downloading images..." + Environment.NewLine;
             foreach (var line in lines)
-            { 
+            {
+                currentCard = line;
+
                 int count = int.Parse(line.Split(' ').First());
                 string cardName = line.Substring(line.IndexOf(' ') + 1).Trim().Replace("/", " // ");
 
@@ -197,10 +231,10 @@ namespace DeckLoader
                 Interlocked.Increment(ref currentDownloadProgress);
                 FirePropertChanged(nameof(CurrentDownloadProgress));
             }
+        }
 
-            var tableTopObject = new TableTopObject();
-            var deck = tableTopObject.ObjectStates.First();
-
+        private void CombineImages(Dictionary<string, string> saveFileInfo, TableTopDeck deck)
+        {
             const int cardWidth = 409;
             const int cardHeight = 585;
             int fileIndex = 0;
@@ -264,7 +298,10 @@ namespace DeckLoader
                 bitmap.Save(outputFolder + "\\" + DeckName + "_Part_" + (i + 1).ToString() + ".png");
                 baseId += 100;
             }
+        }
 
+        private void UploadImages(TableTopObject tableTopObject, TableTopDeck deck)
+        {
             Log += "Uploading image 1/2..." + Environment.NewLine;
             UploadAndSetImageLink(outputFolder + "\\" + DeckName + "_Part_1.png", deck, 1);
 
@@ -273,9 +310,7 @@ namespace DeckLoader
 
             Log += "Saving deck to output..." + Environment.NewLine;
             File.WriteAllText(outputFolder + "\\" + DeckName + ".json", JsonConvert.SerializeObject(tableTopObject, Formatting.Indented, new TableTopCustomDeckJson()));
-            File.Copy(SelectedImagePath, outputFolder + "\\" + DeckName + new FileInfo(SelectedImagePath).Extension); 
-
-            Log += "Done!";
+            File.Copy(SelectedImagePath, outputFolder + "\\" + DeckName + new FileInfo(SelectedImagePath).Extension);
         }
 
         private IEnumerable<string> GetCardImages(string cardName, List<Card> cards)

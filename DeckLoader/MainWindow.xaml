@@ -55,7 +55,7 @@
             <Label Content="Combining Progress:" MinWidth="130"/>
             <ProgressBar Value="{Binding CurrentCombinedProgress}" Minimum="0" Maximum="{Binding CardCount}" Grid.Column="1"/>
         </Grid>
-        <Button Content="Start" Click="Button_Click_2"/>
+        <Button Content="Start" Click="Button_Click_2" IsEnabled="{Binding CarStartJob}"/>
         <Label Content="Log:"/>
         <Label Content="{Binding Log}"/>
     </StackPanel>
