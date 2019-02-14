@@ -68,6 +68,7 @@
     <Compile Include="Models\ImageUris.cs" />
     <Compile Include="Models\Legalities.cs" />
     <Compile Include="Models\RelatedUris.cs" />
+    <Compile Include="Models\ResponseData.cs" />
     <Compile Include="Models\TableTop\TableTopCard.cs" />
     <Compile Include="Models\TableTop\TableTopColor.cs" />
     <Compile Include="Models\TableTop\TableTopCustomDeck.cs" />
@@ -75,6 +76,7 @@
     <Compile Include="Models\TableTop\TableTopDeckImageInfo.cs" />
     <Compile Include="Models\TableTop\TableTopObject.cs" />
     <Compile Include="Models\TableTop\TableTopTransform.cs" />
+    <Compile Include="Models\UploadResponse.cs" />
     <Compile Include="ViewModel.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
