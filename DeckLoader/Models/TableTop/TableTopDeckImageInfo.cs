@@ -1,4 +1,8 @@
-﻿namespace DeckLoader.Models.TableTop
+﻿using System;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
+namespace DeckLoader.Models.TableTop
 {
     public class TableTopDeckImageInfo
     {
