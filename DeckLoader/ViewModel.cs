@@ -12,6 +12,9 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using DeckLoader.Models;
 using DeckLoader.Models.TableTop;
+using Imgur.API.Authentication.Impl;
+using Imgur.API.Endpoints.Impl;
+using Imgur.API.Models;
 using Newtonsoft.Json;
 
 namespace DeckLoader
@@ -172,7 +175,14 @@ namespace DeckLoader
             }
             catch (Exception e)
             {
-                System.Windows.Forms.MessageBox.Show("Error on Card: " + currentCard + Environment.NewLine + e.Message + Environment.NewLine + e.StackTrace);
+                string message = "Error on Card: " + currentCard + Environment.NewLine + e.Message + Environment.NewLine + e.StackTrace;
+
+                if (e.InnerException != null)
+                {
+                    message += Environment.NewLine + Environment.NewLine + e.InnerException.Message;
+                }
+
+                System.Windows.Forms.MessageBox.Show(message);
                 Log += "Interruppted because of error...";
             }
             finally
@@ -188,7 +198,11 @@ namespace DeckLoader
             {
                 currentCard = line;
 
-                int count = int.Parse(line.Split(' ').First());
+                if (!int.TryParse(line.Split(' ').First(), out int count))
+                {
+                    continue;
+                }
+                
                 string cardName = line.Substring(line.IndexOf(' ') + 1).Trim().Replace("/", " // ");
 
                 var imageLinks = GetCardImages(cardName, cards).ToArray();
@@ -244,8 +258,13 @@ namespace DeckLoader
 
             Log += "Combining images..." + Environment.NewLine;
 
-            for (int i = 0; i < 2; i++)
+            for (int i = 0; i < 100; i++)
             {
+                if (fileIndex >= keys.Length)
+                {
+                    break;
+                }
+
                 int currentId = 0;
                 var bitmap = new Bitmap(4096, 4096);
                 using (var graphics = Graphics.FromImage(bitmap))
@@ -263,6 +282,7 @@ namespace DeckLoader
                             {
                                 break;
                             }
+                            
 
                             string file = keys[fileIndex];
                             using (var image = Image.FromFile(file))
@@ -295,7 +315,14 @@ namespace DeckLoader
                     }
                 }
 
-                bitmap.Save(outputFolder + "\\" + DeckName + "_Part_" + (i + 1).ToString() + ".png");
+                ImageCodecInfo jpgEncoder = GetEncoder(ImageFormat.Jpeg);
+                var myEncoder = Encoder.Quality;
+                var myEncoderParameters = new EncoderParameters(1);
+
+                var myEncoderParameter = new EncoderParameter(myEncoder, 90L);
+                myEncoderParameters.Param[0] = myEncoderParameter;
+
+                bitmap.Save(outputFolder + "\\" + DeckName + "_Part_" + (i + 1).ToString() + ".jpg", jpgEncoder, myEncoderParameters);
                 baseId += 100;
             }
         }
@@ -303,10 +330,10 @@ namespace DeckLoader
         private void UploadImages(TableTopObject tableTopObject, TableTopDeck deck)
         {
             Log += "Uploading image 1/2..." + Environment.NewLine;
-            UploadAndSetImageLink(outputFolder + "\\" + DeckName + "_Part_1.png", deck, 1);
+            UploadAndSetImageLink(outputFolder + "\\" + DeckName + "_Part_1.jpg", deck, 1);
 
             Log += "Uploading image 2/2..." + Environment.NewLine;
-            UploadAndSetImageLink(outputFolder + "\\" + DeckName + "_Part_2.png", deck, 2);
+            UploadAndSetImageLink(outputFolder + "\\" + DeckName + "_Part_2.jpg", deck, 2);
 
             Log += "Saving deck to output..." + Environment.NewLine;
             File.WriteAllText(outputFolder + "\\" + DeckName + ".json", JsonConvert.SerializeObject(tableTopObject, Formatting.Indented, new TableTopCustomDeckJson()));
@@ -352,20 +379,17 @@ namespace DeckLoader
         
         private void UploadAndSetImageLink(string imagePath, TableTopDeck deck, int index)
         {
-            using (var httpClient = new HttpClient())
+            var client = new ImgurClient("b99e60a50806ebe", "e5483212a3c81bae011d6e11deb62fdcf4d2d092");
+            var endpoint = new ImageEndpoint(client);
+
+            using (var fs = new FileStream(imagePath, FileMode.Open))
             {
-                var form = new MultipartFormDataContent();
+                IImage image= endpoint.UploadImageStreamAsync(fs).Result;
 
-                var bytes = File.ReadAllBytes(imagePath);
-                var imageForm = new ByteArrayContent(bytes, 0, bytes.Count());
-                imageForm.Headers.ContentType = new MediaTypeHeaderValue("image/jpg");
-
-                form.Add(imageForm, "image", "nameholder.png");
-
-                HttpResponseMessage response = httpClient.PostAsync("https://api.put.re/upload", form).Result;
-
-                response.EnsureSuccessStatusCode();
-                string imageLink = JsonConvert.DeserializeObject<UploadResponse>(response.Content.ReadAsStringAsync().Result).Data.Link;
+                deck.CustomDeck.TableTopDeckInfos.Add(index, new TableTopDeckImageInfo
+                {
+                    FaceURL = image.Link
+                });
 
                 foreach (var containedObject in deck.ContainedObjects)
                 {
@@ -373,11 +397,10 @@ namespace DeckLoader
 
                     if (key == index)
                     {
-                        containedObject.CustomDeck.TableTopDeckInfos[key].FaceURL = imageLink;
+                        containedObject.CustomDeck.TableTopDeckInfos[key].FaceURL = image.Link;
                     }
                 }
             }
-                
         }
 
         private void FirePropertChanged([CallerMemberName]string property = "")
